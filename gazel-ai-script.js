@@ -1,4 +1,3 @@
-<script>
 document.addEventListener('DOMContentLoaded', function() {
   console.log('[Gazel] Script initialized');
   
