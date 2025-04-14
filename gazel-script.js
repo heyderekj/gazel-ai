@@ -354,7 +354,7 @@ function loadingPageInit() {
     console.log('[Gazel API] Using user ID for API call:', userId);
     
     // Set up API call with fetch
-    fetch('https://api.gazelai.com/api/v1/seo_analyze', {
+    fetch('https://api.gazel.ai/api/v1/seo_analyze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
