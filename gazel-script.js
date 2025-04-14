@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // ===== GAZEL API INTEGRATION =====
   
   // NEW API endpoint 
-  const API_ENDPOINT = 'https://api.gazelai.com/api/v1/seo_analyze';
+  const API_ENDPOINT = 'https://api.gazel.ai/api/v1/seo_analyze';
   
   // Add button click handler for Gazel API analysis
   if (urlButton) {
