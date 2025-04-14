@@ -281,171 +281,120 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create and add spinner animation
     createAndAddSpinner();
     
-    // Wait minimum time before redirecting (for perceived loading experience)
-    const loadStartTime = Date.now();
-    const minLoadTime = 5000; // 5 second minimum loading time
-    
-    // Start API request - Using serverless function approach to avoid CORS
-    startSEOAnalysisWithProxy(analyzedUrl)
-      .then(data => {
-        // Store real API data in session storage
-        sessionStorage.setItem('seoAnalysisResults', JSON.stringify(data));
-        sessionStorage.setItem('usingRealData', 'true');
-        
-        // Calculate how long we've been loading
-        const elapsedTime = Date.now() - loadStartTime;
-        const remainingTime = Math.max(0, minLoadTime - elapsedTime);
-        
-        // Wait for the minimum loading time before redirecting
-        setTimeout(() => {
-          window.location.href = '/results-pre';
-        }, remainingTime);
-      })
-      .catch(error => {
-        console.error('[Gazel API] Error:', error);
-        
-        // Store error in session storage
-        sessionStorage.setItem('analysisError', error.toString());
-        sessionStorage.setItem('usingRealData', 'false');
-        
-        // Calculate how long we've been loading
-        const elapsedTime = Date.now() - loadStartTime;
-        const remainingTime = Math.max(0, minLoadTime - elapsedTime);
-        
-        // Wait for the minimum loading time before redirecting
-        setTimeout(() => {
-          window.location.href = '/results-pre';
-        }, remainingTime);
-      });
+    // Loading page initialization
+function loadingPageInit() {
+  console.log('[Gazel] Loading page initialization started');
+  
+  // Get the URL from sessionStorage or from query parameter
+  let analyzedUrl = sessionStorage.getItem('analyzedUrl') || '';
+  
+  // If not in sessionStorage, try to get from URL params
+  if (!analyzedUrl) {
+    const urlParams = new URLSearchParams(window.location.search);
+    analyzedUrl = urlParams.get('url') || '';
+    if (analyzedUrl) {
+      sessionStorage.setItem('analyzedUrl', analyzedUrl);
+    }
   }
   
-  // Function to start SEO analysis using a proxy to avoid CORS
-  function startSEOAnalysisWithProxy(url) {
-    return new Promise((resolve, reject) => {
-      if (!url) {
-        reject(new Error('No URL provided for analysis'));
-        return;
-      }
-      
-      console.log('[Gazel API] Starting API request with proxy approach');
-      console.log('[Gazel API] Analyzing URL:', url);
-      
-      // Get the user ID from storage
-      const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
-      console.log('[Gazel API] Using user ID for API call:', userId);
-      
-      // Create timeout to handle API request failures
-      const timeoutId = setTimeout(() => {
-        reject(new Error('API request timed out after 15 seconds'));
-      }, 15000);
-      
-      // =========================================
-      // CORS WORKAROUND: Using form submission to avoid CORS issues
-      // =========================================
-      // 1. Create a hidden iframe to receive the response
-      const iframeId = 'gazelApiFrame';
-      let iframe = document.getElementById(iframeId);
-      
-      if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = iframeId;
-        iframe.name = iframeId;
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-      }
-      
-      // 2. Create a form to POST the data to the API endpoint
-      const formId = 'gazelApiForm';
-      let apiForm = document.getElementById(formId);
-      
-      if (!apiForm) {
-        apiForm = document.createElement('form');
-        apiForm.id = formId;
-        apiForm.method = 'POST';
-        apiForm.target = iframeId;
-        apiForm.style.display = 'none';
-        document.body.appendChild(apiForm);
-      }
-      
-      // Set the form action to the API endpoint
-      apiForm.action = API_ENDPOINT;
-      
-      // Clear any existing form fields
-      apiForm.innerHTML = '';
-      
-      // Add the URL input field
-      const urlInput = document.createElement('input');
-      urlInput.type = 'hidden';
-      urlInput.name = 'url';
-      urlInput.value = url;
-      apiForm.appendChild(urlInput);
-      
-      // Add the user ID input field
-      const idInput = document.createElement('input');
-      idInput.type = 'hidden';
-      idInput.name = 'id';
-      idInput.value = userId;
-      apiForm.appendChild(idInput);
-      
-      // Listen for iframe load events
-      iframe.onload = function() {
-        clearTimeout(timeoutId);
-        
-        try {
-          // Attempt to read the response (might fail due to same-origin policy)
-          const iframeContent = iframe.contentDocument || iframe.contentWindow.document;
-          
-          if (iframeContent) {
-            console.log('[Gazel API] Received API response via iframe');
-            
-            // Try to parse the response - might be JSON or text
-            let responseData;
-            try {
-              // If the response is JSON
-              if (iframeContent.body.textContent) {
-                responseData = JSON.parse(iframeContent.body.textContent);
-              } else {
-                // If we can't get the content, use simulated data
-                throw new Error('Unable to access iframe content due to cross-origin policy');
-              }
-            } catch (parseError) {
-              console.error('[Gazel API] Error parsing response:', parseError);
-              throw parseError;
-            }
-            
-            resolve(responseData);
-          } else {
-            throw new Error('Unable to access iframe content');
-          }
-        } catch (error) {
-          console.error('[Gazel API] Error accessing iframe response:', error);
-          
-          // Most likely this is a CORS issue - fall back to proxy solution or simulated data
-          console.log('[Gazel API] Falling back to simulated data due to CORS restrictions');
-          
-          // In a production environment, you'd use a proper proxy or serverless function
-          // But for now, we'll use simulated data
-          resolve(createSimulatedAPIResponse(url));
-        }
-      };
-      
-      // Handle iframe errors
-      iframe.onerror = function(error) {
-        clearTimeout(timeoutId);
-        console.error('[Gazel API] Iframe error:', error);
-        
-        // Use simulated data in case of error
-        resolve(createSimulatedAPIResponse(url));
-      };
-      
-      // Submit the form
-      apiForm.submit();
-      console.log('[Gazel API] Form submitted to iframe');
-      
-      // Set a flag for the simulated fallback if CORS is an issue
-      sessionStorage.setItem('usedFallbackMethod', 'true');
-    });
+  console.log('[Gazel] Analyzed URL for display:', analyzedUrl);
+  
+  // Display the analyzed URL on the loading page
+  updateUrlDisplay(analyzedUrl);
+  
+  // Create and add spinner animation
+  createAndAddSpinner();
+  
+  // Wait minimum time before redirecting (for perceived loading experience)
+  const loadStartTime = Date.now();
+  const minLoadTime = 5000; // 5 second minimum loading time
+  
+  // Function to handle redirection with minimum loading time
+  function redirectAfterMinTime(isSuccess, data) {
+    const elapsedTime = Date.now() - loadStartTime;
+    const remainingTime = Math.max(0, minLoadTime - elapsedTime);
+    
+    if (isSuccess) {
+      // Store real API data in session storage
+      sessionStorage.setItem('seoAnalysisResults', JSON.stringify(data));
+      sessionStorage.setItem('usingRealData', 'true');
+    } else {
+      // Store error in session storage
+      sessionStorage.setItem('analysisError', data.toString());
+      sessionStorage.setItem('usingRealData', 'false');
+    }
+    
+    // Wait for the minimum loading time before redirecting
+    setTimeout(() => {
+      window.location.href = '/results-pre';
+    }, remainingTime);
   }
+  
+  // Start API request
+  startSEOAnalysisWithProxy(analyzedUrl)
+    .then(data => redirectAfterMinTime(true, data))
+    .catch(error => {
+      console.error('[Gazel API] Error:', error);
+      redirectAfterMinTime(false, error);
+    });
+}
+  
+  function startSEOAnalysisWithProxy(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) {
+      reject(new Error('No URL provided for analysis'));
+      return;
+    }
+    
+    console.log('[Gazel API] Starting API request');
+    console.log('[Gazel API] Analyzing URL:', url);
+    
+    // Get the user ID from storage
+    const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
+    console.log('[Gazel API] Using user ID for API call:', userId);
+    
+    // Set up API call with fetch
+    fetch('https://api.gazelai.com/api/v1/seo_analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Add any required authentication headers here if needed
+        // 'Authorization': 'Bearer YOUR_TOKEN',
+      },
+      body: JSON.stringify({
+        url: url,
+        id: userId
+      })
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`API request failed with status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Gazel API] Received API response:', data);
+      resolve(data);
+    })
+    .catch(error => {
+      console.error('[Gazel API] Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      
+      // In development/testing mode, fall back to simulated data
+      if (window.location.hostname === 'localhost' || 
+          window.location.hostname === '127.0.0.1' ||
+          window.location.hostname.includes('webflow.io')) {
+        console.log('[Gazel API] Development environment detected, using simulated data');
+        resolve(createSimulatedAPIResponse(url));
+      } else {
+        reject(error);
+      }
+    });
+  });
+}
   
   // Results Pre-page initialization
   function resultsPrePageInit() {
