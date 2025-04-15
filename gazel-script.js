@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('[Gazel] Script initialized');
   
   // Get references to the form, URL field and button
-  const form = document.querySelector('form');  // Get the form that contains your URL field
+  const form = document.querySelector('form');  
   const urlField = document.querySelector('.url-field');
   const urlButton = document.querySelector('.url-button');
   
@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
     urlField.setAttribute('autocorrect', 'off');
     urlField.setAttribute('autocapitalize', 'off');
     urlField.setAttribute('spellcheck', 'false');
-    // IMPORTANT: Change the input type from "url" to "text" to bypass Webflow's built-in validation
+    // Change the input type from "url" to "text" to bypass Webflow's built-in validation
     urlField.setAttribute('type', 'text');
   }
   
@@ -59,6 +59,36 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (_) {
       return false;
     }
+  }
+  
+  // Function to get or create a short persistent user identifier
+  function getShortUserIdentifier() {
+    // Try to get from localStorage first (most persistent)
+    let userId = localStorage.getItem('gazel_user_id');
+    
+    // If not found in localStorage, check sessionStorage (fallback)
+    if (!userId) {
+      userId = sessionStorage.getItem('gazel_user_id');
+    }
+    
+    // If still not found, create a new one (shorter format)
+    if (!userId) {
+      // Generate a shorter unique ID using timestamp and random values
+      // Format: timestamp (base36) + short random string (8 chars)
+      const timestamp = Date.now().toString(36);
+      const randomPart = Math.random().toString(36).substring(2, 10);
+      userId = timestamp + randomPart;
+      
+      // Store in both localStorage and sessionStorage for persistence
+      try {
+        localStorage.setItem('gazel_user_id', userId);
+      } catch (e) {
+        console.log('[Gazel] Unable to use localStorage, falling back to sessionStorage only');
+      }
+      sessionStorage.setItem('gazel_user_id', userId);
+    }
+    
+    return userId;
   }
   
   // Listen for input changes in the URL field
@@ -108,37 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // ===== GAZEL API INTEGRATION =====
-  
-  // NEW API endpoint 
-  const API_ENDPOINT = 'https://api.gazel.ai/api/v1/seo_analyze';
-  
-  // Add button click handler for Gazel API analysis
-  if (urlButton) {
-    urlButton.addEventListener('click', function(event) {
-      console.log('[Gazel] Button click detected');
-      event.preventDefault();
-      
-      const url = urlField ? urlField.value.trim() : '';
-      console.log('[Gazel] URL from button click:', url);
-      
-      // Use button's current state to determine if URL is valid
-      if (urlButton.style.opacity === '1' && urlButton.style.pointerEvents === 'auto') {
-        console.log('[Gazel] URL is valid, proceeding with analysis');
-        analyzeSEOViaForm(url);
-      } else {
-        console.log('[Gazel] URL is invalid, not proceeding');
-        // Validation message will be shown by the existing validation logic
-      }
-    });
-  }
-  
-  // Function to generate a new UUID v4 for each analysis session
-function getShortUserIdentifier() {
-  // Use the global uuidv4 function provided by the CDN
-  return uuidv4();
-}
-  
   // Function to analyze SEO using loading page approach
   function analyzeSEOViaForm(url) {
     console.log('[Gazel] Starting analysis for URL:', url);
@@ -160,25 +159,15 @@ function getShortUserIdentifier() {
     sessionStorage.setItem('analyzedUrl', url);
     sessionStorage.setItem('userId', userId);
     sessionStorage.setItem('analysisStartTime', Date.now());
-    sessionStorage.setItem('apiEndpoint', API_ENDPOINT);
+    sessionStorage.setItem('apiEndpoint', 'https://api.gazel.ai/api/v1/seo_analyze');
     console.log('[Gazel] URL and user ID stored in sessionStorage');
     
     // Base64 encode the data for Stripe (shorter format)
-const dataToEncode = JSON.stringify({id: userId, url: url});
-let encodedData = btoa(dataToEncode);
-
-// Replace any "=" signs with "_" as requested
-encodedData = encodedData.replace(/=/g, '_');
-
-// Restrict the encoded data to 200 characters max
-if (encodedData.length > 200) {
-  encodedData = encodedData.substring(0, 200);
-}
-
-console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
+    const dataToEncode = JSON.stringify({id: userId, url: url});
+    const encodedData = btoa(dataToEncode);
+    console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
     
     // Create the Stripe checkout URL with the encoded reference ID
-    // Note: The Stripe link part may change in the final version
     const stripeCheckoutUrl = `https://buy.stripe.com/4gw6p4dJuei17ba6op?client_reference_id=${encodedData}`;
     console.log('[Gazel] Stripe checkout URL:', stripeCheckoutUrl);
     
@@ -190,10 +179,33 @@ console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
     window.location.href = '/loading?url=' + encodeURIComponent(url);
   }
   
-  // Handle form submission to ensure URL is properly formatted and initiate analysis
+  // MODIFIED: Simple direct form handlers - just use these instead of complex event management
+  if (urlButton) {
+    urlButton.onclick = function(e) {
+      e.preventDefault();
+      console.log('[Gazel] Button click detected');
+      
+      const url = urlField ? urlField.value.trim() : '';
+      console.log('[Gazel] URL from button click:', url);
+      
+      if (isValidURL(url)) {
+        console.log('[Gazel] URL is valid, proceeding with analysis');
+        analyzeSEOViaForm(url);
+      } else {
+        console.log('[Gazel] URL is invalid, not proceeding');
+        if (urlField) {
+          urlField.setCustomValidity('Please enter a valid URL');
+          urlField.reportValidity();
+        }
+      }
+      
+      return false;
+    };
+  }
+  
   if (form) {
-    form.addEventListener('submit', function(event) {
-      event.preventDefault(); // Always prevent default form submission
+    form.onsubmit = function(e) {
+      e.preventDefault();
       console.log('[Gazel] Form submit intercepted');
       
       if (!urlField) {
@@ -201,27 +213,19 @@ console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
         return false;
       }
       
-      const inputValue = urlField.value.trim();
+      const url = urlField.value.trim();
       
-      if (!isValidURL(inputValue)) {
-        console.log('[Gazel] URL is invalid on form submit');
+      if (isValidURL(url)) {
+        console.log('[Gazel] URL is valid, proceeding with analysis');
+        analyzeSEOViaForm(url);
+      } else {
+        console.log('[Gazel] URL is invalid, not proceeding');
         urlField.setCustomValidity('Please enter a valid URL');
-        urlField.reportValidity(); // Show validation message
-        return false;
+        urlField.reportValidity();
       }
       
-      // Format URL properly before submission - always use HTTPS
-      let formattedUrl = inputValue;
-      if (!inputValue.includes('://')) {
-        formattedUrl = 'https://' + inputValue;
-      } else if (inputValue.startsWith('http://')) {
-        formattedUrl = inputValue.replace('http://', 'https://');
-      }
-      
-      console.log('[Gazel] Formatted URL:', formattedUrl);
-      analyzeSEOViaForm(formattedUrl);
       return false;
-    });
+    };
   }
   
   // ===== LOADING PAGE CODE =====
@@ -266,120 +270,94 @@ console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
     // Create and add spinner animation
     createAndAddSpinner();
     
-    // Loading page initialization
-function loadingPageInit() {
-  console.log('[Gazel] Loading page initialization started');
-  
-  // Get the URL from sessionStorage or from query parameter
-  let analyzedUrl = sessionStorage.getItem('analyzedUrl') || '';
-  
-  // If not in sessionStorage, try to get from URL params
-  if (!analyzedUrl) {
-    const urlParams = new URLSearchParams(window.location.search);
-    analyzedUrl = urlParams.get('url') || '';
-    if (analyzedUrl) {
-      sessionStorage.setItem('analyzedUrl', analyzedUrl);
-    }
-  }
-  
-  console.log('[Gazel] Analyzed URL for display:', analyzedUrl);
-  
-  // Display the analyzed URL on the loading page
-  updateUrlDisplay(analyzedUrl);
-  
-  // Create and add spinner animation
-  createAndAddSpinner();
-  
-  // Wait minimum time before redirecting (for perceived loading experience)
-  const loadStartTime = Date.now();
-  const minLoadTime = 5000; // 5 second minimum loading time
-  
-  // Function to handle redirection with minimum loading time
-  function redirectAfterMinTime(isSuccess, data) {
-    const elapsedTime = Date.now() - loadStartTime;
-    const remainingTime = Math.max(0, minLoadTime - elapsedTime);
+    // Wait minimum time before redirecting (for perceived loading experience)
+    const loadStartTime = Date.now();
+    const minLoadTime = 5000; // 5 second minimum loading time
     
-    if (isSuccess) {
-      // Store real API data in session storage
-      sessionStorage.setItem('seoAnalysisResults', JSON.stringify(data));
-      sessionStorage.setItem('usingRealData', 'true');
-    } else {
-      // Store error in session storage
-      sessionStorage.setItem('analysisError', data.toString());
-      sessionStorage.setItem('usingRealData', 'false');
+    // Function to handle redirection with minimum loading time
+    function redirectAfterMinTime(isSuccess, data) {
+      const elapsedTime = Date.now() - loadStartTime;
+      const remainingTime = Math.max(0, minLoadTime - elapsedTime);
+      
+      if (isSuccess) {
+        // Store real API data in session storage
+        sessionStorage.setItem('seoAnalysisResults', JSON.stringify(data));
+        sessionStorage.setItem('usingRealData', 'true');
+      } else {
+        // Store error in session storage
+        sessionStorage.setItem('analysisError', data.toString());
+        sessionStorage.setItem('usingRealData', 'false');
+      }
+      
+      // Wait for the minimum loading time before redirecting
+      setTimeout(() => {
+        window.location.href = '/results-pre';
+      }, remainingTime);
     }
     
-    // Wait for the minimum loading time before redirecting
-    setTimeout(() => {
-      window.location.href = '/results-pre';
-    }, remainingTime);
+    // Start API request or use simulated data
+    startSEOAnalysisWithProxy(analyzedUrl)
+      .then(data => redirectAfterMinTime(true, data))
+      .catch(error => {
+        console.error('[Gazel API] Error:', error);
+        redirectAfterMinTime(false, error);
+      });
   }
-  
-  // Start API request
-  startSEOAnalysisWithProxy(analyzedUrl)
-    .then(data => redirectAfterMinTime(true, data))
-    .catch(error => {
-      console.error('[Gazel API] Error:', error);
-      redirectAfterMinTime(false, error);
-    });
-}
   
   function startSEOAnalysisWithProxy(url) {
-  return new Promise((resolve, reject) => {
-    if (!url) {
-      reject(new Error('No URL provided for analysis'));
-      return;
-    }
-    
-    console.log('[Gazel API] Starting API request');
-    console.log('[Gazel API] Analyzing URL:', url);
-    
-    // Get the user ID from storage
-    const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
-    console.log('[Gazel API] Using user ID for API call:', userId);
-    
-    // Set up API call with fetch
-    fetch('https://api.gazel.ai/api/v1/seo_analyze', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Add any required authentication headers here if needed
-        // 'Authorization': 'Bearer YOUR_TOKEN',
-      },
-      body: JSON.stringify({
-        url: url,
-        id: userId
-      })
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`API request failed with status: ${response.status}`);
+    return new Promise((resolve, reject) => {
+      if (!url) {
+        reject(new Error('No URL provided for analysis'));
+        return;
       }
-      return response.json();
-    })
-    .then(data => {
-      console.log('[Gazel API] Received API response:', data);
-      resolve(data);
-    })
-    .catch(error => {
-      console.error('[Gazel API] Error details:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
       
-      // In development/testing mode, fall back to simulated data
-      if (window.location.hostname === 'localhost' || 
-          window.location.hostname === '127.0.0.1' ||
-          window.location.hostname.includes('webflow.io')) {
-        console.log('[Gazel API] Development environment detected, using simulated data');
-        resolve(createSimulatedAPIResponse(url));
-      } else {
-        reject(error);
-      }
+      console.log('[Gazel API] Starting API request');
+      console.log('[Gazel API] Analyzing URL:', url);
+      
+      // Get the user ID from storage
+      const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
+      console.log('[Gazel API] Using user ID for API call:', userId);
+      
+      // Set up API call with fetch
+      fetch('https://api.gazel.ai/api/v1/seo_analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url,
+          id: userId
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`API request failed with status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('[Gazel API] Received API response:', data);
+        resolve(data);
+      })
+      .catch(error => {
+        console.error('[Gazel API] Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+        
+        // In development/testing mode, fall back to simulated data
+        if (window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1' ||
+            window.location.hostname.includes('webflow.io')) {
+          console.log('[Gazel API] Development environment detected, using simulated data');
+          resolve(createSimulatedAPIResponse(url));
+        } else {
+          reject(error);
+        }
+      });
     });
-  });
-}
+  }
   
   // Results Pre-page initialization
   function resultsPrePageInit() {
@@ -446,9 +424,12 @@ function loadingPageInit() {
       
       // Fallback: Search for elements containing {url} template
       document.querySelectorAll('*').forEach(el => {
-        if (el.textContent && el.textContent.includes('{url}')) {
-          console.log('[Gazel] Found element with {url} template:', el);
-          el.textContent = el.textContent.replace('{url}', url);
+        if (el.childNodes && el.childNodes.length > 0) {
+          el.childNodes.forEach(node => {
+            if (node.nodeType === 3 && node.textContent && node.textContent.includes('{url}')) {
+              node.textContent = node.textContent.replace('{url}', url);
+            }
+          });
         }
       });
     }
@@ -782,97 +763,97 @@ function loadingPageInit() {
     updateExplanationPoints('ux', data["User Experience"].explanation);
   }
   
-  // Update explanation points for each category
-  function updateExplanationPoints(category, explanations) {
-    if (!explanations || !Array.isArray(explanations)) return;
-    
-    // Update up to 3 points for each category
-    for (let i = 0; i < Math.min(explanations.length, 3); i++) {
-      const pointId = `${category}-p${i+1}`;
-      updateElementContent(pointId, explanations[i]);
-    }
-  }
+ // Update explanation points for each category
+ function updateExplanationPoints(category, explanations) {
+  if (!explanations || !Array.isArray(explanations)) return;
   
-  // Simulate scores when no API data available
-  function simulateScores() {
-    console.log('[Gazel] Using simulated data for display');
-    
-    // Mark as using simulated data in session storage
-    sessionStorage.setItem('usingRealData', 'false');
-    
-    // Create simulated data using the same function as the API fallback
-    const simulatedData = createSimulatedAPIResponse(sessionStorage.getItem('analyzedUrl') || 'example.com');
-    
-    // Use the same function that processes real API data
-    updateElementsFromRealAPI(simulatedData);
-    
-    // Add notification that data is simulated
-    addSimulatedDataNotice();
+  // Update up to 3 points for each category
+  for (let i = 0; i < Math.min(explanations.length, 3); i++) {
+    const pointId = `${category}-p${i+1}`;
+    updateElementContent(pointId, explanations[i]);
   }
+}
+
+// Simulate scores when no API data available
+function simulateScores() {
+  console.log('[Gazel] Using simulated data for display');
+  
+  // Mark as using simulated data in session storage
+  sessionStorage.setItem('usingRealData', 'false');
+  
+  // Create simulated data using the same function as the API fallback
+  const simulatedData = createSimulatedAPIResponse(sessionStorage.getItem('analyzedUrl') || 'example.com');
+  
+  // Use the same function that processes real API data
+  updateElementsFromRealAPI(simulatedData);
   
   // Add notification that data is simulated
-  function addSimulatedDataNotice() {
-    // Check if notice already exists
-    if (document.querySelector('.simulated-data-notice')) {
-      return;
-    }
-    
-    // Create the notice element
-    const notice = document.createElement('div');
-    notice.className = 'simulated-data-notice';
-    notice.style.position = 'fixed';
-    notice.style.bottom = '20px';
-    notice.style.right = '20px';
-    notice.style.padding = '10px 15px';
-    notice.style.background = '#FFF9E5';
-    notice.style.border = '1px solid #FFD580';
-    notice.style.borderRadius = '4px';
-    notice.style.color = '#856404';
-    notice.style.fontSize = '14px';
-    notice.style.fontWeight = '500';
-    notice.style.zIndex = '9999';
-    notice.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-    notice.textContent = 'Note: Using simulated data for demonstration';
-    
-    // Add to body
-    document.body.appendChild(notice);
-    
-    console.log('[Gazel] Added simulated data notice to page');
-    
-    // Ensure the notice stays visible by re-checking later
-    // (Some frameworks might remove dynamically added elements)
-    setTimeout(() => {
-      if (!document.querySelector('.simulated-data-notice')) {
-        console.log('[Gazel] Notice was removed, adding it again');
-        document.body.appendChild(notice.cloneNode(true));
-      }
-    }, 1000);
+  addSimulatedDataNotice();
+}
+
+// Add notification that data is simulated
+function addSimulatedDataNotice() {
+  // Check if notice already exists
+  if (document.querySelector('.simulated-data-notice')) {
+    return;
   }
   
-  // Helper function to update element content if it exists
-  function updateElementContent(elementId, content) {
-    if (!elementId || content === undefined || content === null) return;
-    
-    const element = document.getElementById(elementId);
-    if (element) {
-      element.textContent = content;
-    }
-  }
+  // Create the notice element
+  const notice = document.createElement('div');
+  notice.className = 'simulated-data-notice';
+  notice.style.position = 'fixed';
+  notice.style.bottom = '20px';
+  notice.style.right = '20px';
+  notice.style.padding = '10px 15px';
+  notice.style.background = '#FFF9E5';
+  notice.style.border = '1px solid #FFD580';
+  notice.style.borderRadius = '4px';
+  notice.style.color = '#856404';
+  notice.style.fontSize = '14px';
+  notice.style.fontWeight = '500';
+  notice.style.zIndex = '9999';
+  notice.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+  notice.textContent = 'Note: Using simulated data for demonstration';
   
-  // Helper function to update score elements
-  function updateScore(elementId, score) {
-    if (!elementId || score === undefined || score === null) return;
-    
-    // Find all elements with the matching ID
-    const elements = document.querySelectorAll('#' + elementId);
-    if (!elements.length) return;
-    
-    // Format the score (round to nearest integer)
-    const formattedScore = typeof score === 'number' ? Math.round(score) : 0;
-    
-    // Update all matching elements
-    elements.forEach(element => {
-      element.textContent = formattedScore;
-    });
+  // Add to body
+  document.body.appendChild(notice);
+  
+  console.log('[Gazel] Added simulated data notice to page');
+  
+  // Ensure the notice stays visible by re-checking later
+  // (Some frameworks might remove dynamically added elements)
+  setTimeout(() => {
+    if (!document.querySelector('.simulated-data-notice')) {
+      console.log('[Gazel] Notice was removed, adding it again');
+      document.body.appendChild(notice.cloneNode(true));
+    }
+  }, 1000);
+}
+
+// Helper function to update element content if it exists
+function updateElementContent(elementId, content) {
+  if (!elementId || content === undefined || content === null) return;
+  
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.textContent = content;
   }
+}
+
+// Helper function to update score elements
+function updateScore(elementId, score) {
+  if (!elementId || score === undefined || score === null) return;
+  
+  // Find all elements with the matching ID
+  const elements = document.querySelectorAll('#' + elementId);
+  if (!elements.length) return;
+  
+  // Format the score (round to nearest integer)
+  const formattedScore = typeof score === 'number' ? Math.round(score) : 0;
+  
+  // Update all matching elements
+  elements.forEach(element => {
+    element.textContent = formattedScore;
+  });
+}
 });
