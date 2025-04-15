@@ -133,35 +133,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Function to get or create a short persistent user identifier
-  function getShortUserIdentifier() {
-    // Try to get from localStorage first (most persistent)
-    let userId = localStorage.getItem('gazel_user_id');
-    
-    // If not found in localStorage, check sessionStorage (fallback)
-    if (!userId) {
-      userId = sessionStorage.getItem('gazel_user_id');
-    }
-    
-    // If still not found, create a new one (shorter format)
-    if (!userId) {
-      // Generate a shorter unique ID using timestamp and random values
-      // Format: timestamp (base36) + short random string (8 chars)
-      const timestamp = Date.now().toString(36);
-      const randomPart = Math.random().toString(36).substring(2, 10);
-      userId = timestamp + randomPart;
-      
-      // Store in both localStorage and sessionStorage for persistence
-      try {
-        localStorage.setItem('gazel_user_id', userId);
-      } catch (e) {
-        console.log('[Gazel] Unable to use localStorage, falling back to sessionStorage only');
-      }
-      sessionStorage.setItem('gazel_user_id', userId);
-    }
-    
-    return userId;
-  }
+  // Function to generate a new UUID v4 for each analysis session
+function getShortUserIdentifier() {
+  // Use the global uuidv4 function provided by the CDN
+  return uuidv4();
+}
   
   // Function to analyze SEO using loading page approach
   function analyzeSEOViaForm(url) {
@@ -188,9 +164,18 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[Gazel] URL and user ID stored in sessionStorage');
     
     // Base64 encode the data for Stripe (shorter format)
-    const dataToEncode = JSON.stringify({id: userId, url: url});
-    const encodedData = btoa(dataToEncode);
-    console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
+const dataToEncode = JSON.stringify({id: userId, url: url});
+let encodedData = btoa(dataToEncode);
+
+// Replace any "=" signs with "_" as requested
+encodedData = encodedData.replace(/=/g, '_');
+
+// Restrict the encoded data to 200 characters max
+if (encodedData.length > 200) {
+  encodedData = encodedData.substring(0, 200);
+}
+
+console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
     
     // Create the Stripe checkout URL with the encoded reference ID
     // Note: The Stripe link part may change in the final version
