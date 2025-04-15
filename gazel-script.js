@@ -1,232 +1,147 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   console.log('[Gazel] Script initialized');
-  
-  // Get references to the form, URL field and button
-  const form = document.querySelector('form');  
+
+  const form = document.querySelector('form');
   const urlField = document.querySelector('.url-field');
   const urlButton = document.querySelector('.url-button');
-  
+
   console.log('[Gazel] Form elements found:', {
     form: !!form,
     field: !!urlField,
     button: !!urlButton
   });
-  
-  // Fix for form target to ensure it uses HTTPS
-  if (form && form.getAttribute('action') && form.getAttribute('action').startsWith('http://')) {
-    // Update form action to use HTTPS instead of HTTP
+
+  // Fix insecure form action
+  if (form && form.getAttribute('action')?.startsWith('http://')) {
     form.setAttribute('action', form.getAttribute('action').replace('http://', 'https://'));
     console.log('[Gazel] Fixed insecure form action target');
   }
-  
-  // Prevent autofill by adding attributes
+
+  // Set input attributes to prevent autofill and override Webflow validation
   if (urlField) {
     urlField.setAttribute('autocomplete', 'off');
     urlField.setAttribute('autocorrect', 'off');
     urlField.setAttribute('autocapitalize', 'off');
     urlField.setAttribute('spellcheck', 'false');
-    // Change the input type from "url" to "text" to bypass Webflow's built-in validation
     urlField.setAttribute('type', 'text');
   }
-  
-  // Initial state: set button to 50% opacity and disabled
+
+  // Disable button initially
   if (urlButton) {
     urlButton.style.opacity = '0.5';
     urlButton.style.pointerEvents = 'none';
   }
-  
-  // Function to validate URL
+
+  // URL validation helper
   function isValidURL(string) {
     if (!string) return false;
-    
-    // Basic domain pattern check
     const domainPattern = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
-    
-    // Special handling for inputs without protocol
     if (!/^https?:\/\//i.test(string)) {
-      // Test domain pattern first
-      if (!domainPattern.test(string)) {
-        return false;
-      }
+      if (!domainPattern.test(string)) return false;
       string = 'http://' + string;
     }
-    
     try {
       const url = new URL(string);
-      return (url.protocol === 'http:' || url.protocol === 'https:') && 
-             url.hostname.includes('.') && 
-             url.hostname.length > 3;
+      return ['http:', 'https:'].includes(url.protocol) && url.hostname.includes('.') && url.hostname.length > 3;
     } catch (_) {
       return false;
     }
   }
-  
-  // Function to get or create a short persistent user identifier
+
+  // Generate or retrieve a short persistent user ID
   function getShortUserIdentifier() {
-    // Try to get from localStorage first (most persistent)
-    let userId = localStorage.getItem('gazel_user_id');
-    
-    // If not found in localStorage, check sessionStorage (fallback)
+    let userId = localStorage.getItem('gazel_user_id') || sessionStorage.getItem('gazel_user_id');
     if (!userId) {
-      userId = sessionStorage.getItem('gazel_user_id');
-    }
-    
-    // If still not found, create a new one (shorter format)
-    if (!userId) {
-      // Generate a shorter unique ID using timestamp and random values
-      // Format: timestamp (base36) + short random string (8 chars)
       const timestamp = Date.now().toString(36);
       const randomPart = Math.random().toString(36).substring(2, 10);
       userId = timestamp + randomPart;
-      
-      // Store in both localStorage and sessionStorage for persistence
       try {
         localStorage.setItem('gazel_user_id', userId);
       } catch (e) {
-        console.log('[Gazel] Unable to use localStorage, falling back to sessionStorage only');
+        console.warn('[Gazel] localStorage unavailable, using sessionStorage only');
       }
       sessionStorage.setItem('gazel_user_id', userId);
     }
-    
     return userId;
   }
-  
-  // Listen for input changes in the URL field
+
+  // Handle input changes
   if (urlField) {
-    urlField.addEventListener('input', function() {
+    urlField.addEventListener('input', function () {
       const inputValue = this.value.trim();
-      
-      // Add the 'has-content' class logic
       const parent = this.closest('.url-input_area');
       if (parent) {
-        if (inputValue) {
-          parent.classList.add('has-content');
-        } else {
-          parent.classList.remove('has-content');
-        }
+        parent.classList.toggle('has-content', !!inputValue);
       }
-      
+
       if (urlButton) {
         if (isValidURL(inputValue)) {
-          // Valid URL: set button to 100% opacity and enable it
           urlButton.style.opacity = '1';
           urlButton.style.pointerEvents = 'auto';
-          
-          // Store the properly formatted URL for later use
-          const formattedURL = inputValue.includes('://') ? inputValue : 'https://' + inputValue;
-          urlButton.setAttribute('data-url', formattedURL);
-          urlField.setCustomValidity(''); // Clear any custom validation message
-          
-          // Add animation class when URL is valid
+          urlField.setCustomValidity('');
           urlButton.classList.add('url-valid');
         } else {
-          // Invalid URL: set button to 50% opacity and disable it
           urlButton.style.opacity = '0.5';
           urlButton.style.pointerEvents = 'none';
-          urlButton.removeAttribute('data-url');
-          
-          if (inputValue) {
-            urlField.setCustomValidity('Please enter a valid URL'); // Set custom validation message
-          } else {
-            urlField.setCustomValidity(''); // Clear validation if field is empty
-          }
-          
-          // Remove animation class when URL is invalid
+          urlField.setCustomValidity(inputValue ? 'Please enter a valid URL' : '');
           urlButton.classList.remove('url-valid');
         }
       }
     });
   }
-  
-  // Function to analyze SEO using loading page approach
+
+  // Analyze and redirect
   function analyzeSEOViaForm(url) {
-    console.log('[Gazel] Starting analysis for URL:', url);
-    
-    // Ensure URL has proper format - ALWAYS use HTTPS to prevent mixed content warnings
     if (!/^https?:\/\//i.test(url)) {
       url = 'https://' + url;
-      console.log('[Gazel] URL reformatted to include https:', url);
     } else if (url.startsWith('http://')) {
       url = url.replace('http://', 'https://');
-      console.log('[Gazel] URL changed from http to https:', url);
     }
-    
-    // Generate or retrieve a short user identifier
-    let userId = getShortUserIdentifier();
-    console.log('[Gazel] Using user identifier:', userId);
-    
-    // Store the URL and user ID in sessionStorage
+
+    const userId = getShortUserIdentifier();
     sessionStorage.setItem('analyzedUrl', url);
     sessionStorage.setItem('userId', userId);
     sessionStorage.setItem('analysisStartTime', Date.now());
     sessionStorage.setItem('apiEndpoint', 'https://api.gazel.ai/api/v1/seo_analyze');
-    console.log('[Gazel] URL and user ID stored in sessionStorage');
-    
-    // Base64 encode the data for Stripe (shorter format)
-    const dataToEncode = JSON.stringify({id: userId, url: url});
-    const encodedData = btoa(dataToEncode);
-    console.log('[Gazel] Base64 encoded data for Stripe:', encodedData);
-    
-    // Create the Stripe checkout URL with the encoded reference ID
-    const stripeCheckoutUrl = `https://buy.stripe.com/4gw6p4dJuei17ba6op?client_reference_id=${encodedData}`;
-    console.log('[Gazel] Stripe checkout URL:', stripeCheckoutUrl);
-    
-    // Store the Stripe URL in sessionStorage
-    sessionStorage.setItem('stripeCheckoutUrl', stripeCheckoutUrl);
-    
-    // Redirect to loading page
-    console.log('[Gazel] Redirecting to loading page...');
+
+    const encodedData = btoa(JSON.stringify({ id: userId, url }));
+    sessionStorage.setItem('stripeCheckoutUrl', `https://buy.stripe.com/4gw6p4dJuei17ba6op?client_reference_id=${encodedData}`);
+
     window.location.href = '/loading?url=' + encodeURIComponent(url);
   }
-  
-  // MODIFIED: Simple direct form handlers - just use these instead of complex event management
+
+  // Button click handler
   if (urlButton) {
-    urlButton.onclick = function(e) {
+    urlButton.addEventListener('click', function (e) {
       e.preventDefault();
-      console.log('[Gazel] Button click detected');
-      
-      const url = urlField ? urlField.value.trim() : '';
-      console.log('[Gazel] URL from button click:', url);
-      
+      const url = urlField?.value.trim() || '';
       if (isValidURL(url)) {
-        console.log('[Gazel] URL is valid, proceeding with analysis');
         analyzeSEOViaForm(url);
       } else {
-        console.log('[Gazel] URL is invalid, not proceeding');
-        if (urlField) {
-          urlField.setCustomValidity('Please enter a valid URL');
-          urlField.reportValidity();
-        }
-      }
-      
-      return false;
-    };
-  }
-  
-  if (form) {
-    form.onsubmit = function(e) {
-      e.preventDefault();
-      console.log('[Gazel] Form submit intercepted');
-      
-      if (!urlField) {
-        console.error('[Gazel] URL field not found');
-        return false;
-      }
-      
-      const url = urlField.value.trim();
-      
-      if (isValidURL(url)) {
-        console.log('[Gazel] URL is valid, proceeding with analysis');
-        analyzeSEOViaForm(url);
-      } else {
-        console.log('[Gazel] URL is invalid, not proceeding');
         urlField.setCustomValidity('Please enter a valid URL');
         urlField.reportValidity();
       }
-      
-      return false;
-    };
+    });
   }
+
+  // Form submit handler
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const url = urlField?.value.trim() || '';
+      if (isValidURL(url)) {
+        analyzeSEOViaForm(url);
+      } else {
+        urlField.setCustomValidity('Please enter a valid URL');
+        urlField.reportValidity();
+      }
+    });
+  }
+
+  // The rest of your script (loading page, results, simulated data, etc.) remains unchanged
+  // You can paste it below this block or keep it as-is if already present
+});
+
   
   // ===== LOADING PAGE CODE =====
   if (window.location.pathname.includes('/loading')) {
