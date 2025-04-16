@@ -48,22 +48,102 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Generate or retrieve a short persistent user ID
-  function getShortUserIdentifier() {
-    let userId = localStorage.getItem('gazel_user_id') || sessionStorage.getItem('gazel_user_id');
-    if (!userId) {
-      const timestamp = Date.now().toString(36);
-      const randomPart = Math.random().toString(36).substring(2, 10);
-      userId = timestamp + randomPart;
-      try {
-        localStorage.setItem('gazel_user_id', userId);
-      } catch (e) {
-        console.warn('[Gazel] localStorage unavailable, using sessionStorage only');
-      }
-      sessionStorage.setItem('gazel_user_id', userId);
-    }
-    return userId;
+  // Function to get or create a short persistent user identifier
+function getShortUserIdentifier() {
+  // Try to get from localStorage first (most persistent)
+  let userId = localStorage.getItem('gazel_user_id');
+  
+  // If not found in localStorage, check sessionStorage (fallback)
+  if (!userId) {
+    userId = sessionStorage.getItem('gazel_user_id');
   }
+  
+  // If still not found, create a new one (shorter format)
+  if (!userId) {
+    // Generate a shorter unique ID using timestamp and random values
+    // Format: timestamp (base36) + short random string (8 chars)
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 10);
+    userId = timestamp + randomPart;
+    
+    // Store in both localStorage and sessionStorage for persistence
+    try {
+      localStorage.setItem('gazel_user_id', userId);
+    } catch (e) {
+      console.log('[Gazel] Unable to use localStorage, falling back to sessionStorage only');
+    }
+    sessionStorage.setItem('gazel_user_id', userId);
+  }
+  
+  return userId;
+}
+
+// Function to analyze SEO using loading page approach
+function analyzeSEOViaForm(url) {
+  console.log('[Gazel] Starting analysis for URL:', url);
+  
+  // Ensure URL has proper format - ALWAYS use HTTPS to prevent mixed content warnings
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'https://' + url;
+    console.log('[Gazel] URL reformatted to include https:', url);
+  } else if (url.startsWith('http://')) {
+    url = url.replace('http://', 'https://');
+    console.log('[Gazel] URL changed from http to https:', url);
+  }
+  
+  // Generate or retrieve a short user identifier
+  let userId = getShortUserIdentifier();
+  console.log('[Gazel] Using user identifier:', userId);
+  
+  // Store the URL and user ID in sessionStorage
+  sessionStorage.setItem('analyzedUrl', url);
+  sessionStorage.setItem('userId', userId);
+  sessionStorage.setItem('analysisStartTime', Date.now());
+  sessionStorage.setItem('apiEndpoint', API_ENDPOINT);
+  console.log('[Gazel] URL and user ID stored in sessionStorage');
+  
+  // Base64 encode the data for Stripe (shorter format)
+  const dataToEncode = JSON.stringify({id: userId, url: url});
+  
+  // Encode to Base64 and replace '=' with '_' to avoid issues with client_reference_id
+  // This is the key change to fix the payment event issue
+  const encodedData = btoa(dataToEncode).replace(/=/g, '_');
+  console.log('[Gazel] Base64 encoded data for Stripe (with = replaced by _):', encodedData);
+  
+  // Create the Stripe checkout URL with the encoded reference ID
+  // Note: The Stripe link part may change in the final version
+  const stripeCheckoutUrl = `https://buy.stripe.com/4gw6p4dJuei17ba6op?client_reference_id=${encodedData}`;
+  console.log('[Gazel] Stripe checkout URL:', stripeCheckoutUrl);
+  
+  // Store the Stripe URL in sessionStorage
+  sessionStorage.setItem('stripeCheckoutUrl', stripeCheckoutUrl);
+  
+  // Redirect to loading page
+  console.log('[Gazel] Redirecting to loading page...');
+  window.location.href = '/loading?url=' + encodeURIComponent(url);
+}
+
+// Function to handle the retrieved data on the receiving end (if needed)
+function decodeStripeReferenceId(encodedId) {
+  // Add back any missing padding if needed
+  let paddedId = encodedId;
+  while (paddedId.length % 4 !== 0) {
+    paddedId += '_';
+  }
+  
+  // Replace '_' back to '=' for decoding
+  const base64Id = paddedId.replace(/_/g, '=');
+  
+  try {
+    // Decode the Base64 string
+    const jsonString = atob(base64Id);
+    // Parse the JSON
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error('[Gazel] Error decoding reference ID:', error);
+    return null;
+  }
+}
 
   // Handle input changes
   if (urlField) {
@@ -88,26 +168,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     });
-  }
-
-  // Analyze and redirect
-  function analyzeSEOViaForm(url) {
-    if (!/^https?:\/\//i.test(url)) {
-      url = 'https://' + url;
-    } else if (url.startsWith('http://')) {
-      url = url.replace('http://', 'https://');
-    }
-
-    const userId = getShortUserIdentifier();
-    sessionStorage.setItem('analyzedUrl', url);
-    sessionStorage.setItem('userId', userId);
-    sessionStorage.setItem('analysisStartTime', Date.now());
-    sessionStorage.setItem('apiEndpoint', 'https://api.gazel.ai/api/v1/seo_analyze');
-
-    const encodedData = btoa(JSON.stringify({ id: userId, url }));
-    sessionStorage.setItem('stripeCheckoutUrl', `https://buy.stripe.com/4gw6p4dJuei17ba6op?client_reference_id=${encodedData}`);
-
-    window.location.href = '/loading?url=' + encodeURIComponent(url);
   }
 
   // Button click handler
