@@ -771,4 +771,3 @@ function updateScore(elementId, score) {
     element.textContent = formattedScore;
   });
 }
-});
