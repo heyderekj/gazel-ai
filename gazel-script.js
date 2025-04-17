@@ -102,13 +102,12 @@ function analyzeSEOViaForm(url) {
   sessionStorage.setItem('apiEndpoint', API_ENDPOINT);
   console.log('[Gazel] URL and user ID stored in sessionStorage');
   
-  // Base64 encode the data for Stripe (shorter format)
   const dataToEncode = JSON.stringify({id: userId, url: url});
-  
-  // Encode to Base64 and replace '=' with '_' to avoid issues with client_reference_id
-  // This is the key change to fix the payment event issue
-  const encodedData = btoa(dataToEncode).replace(/=/g, '_');
-  console.log('[Gazel] Base64 encoded data for Stripe (with = replaced by _):', encodedData);
+let encodedData = btoa(dataToEncode);
+// Make sure to replace all potential '=' at the end
+encodedData = encodedData.replace(/=+$/, function(match) {
+  return '_'.repeat(match.length);
+});
   
   // Create the Stripe checkout URL with the encoded reference ID
   // Note: The Stripe link part may change in the final version
