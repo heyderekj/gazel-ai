@@ -99,7 +99,7 @@ function analyzeSEOViaForm(url) {
   sessionStorage.setItem('analyzedUrl', url);
   sessionStorage.setItem('userId', userId);
   sessionStorage.setItem('analysisStartTime', Date.now());
-  sessionStorage.setItem('apiEndpoint', API_ENDPOINT);
+  sessionStorage.setItem('apiEndpoint', 'https://api.gazel.ai/api/v1/seo_analyze');
   console.log('[Gazel] URL and user ID stored in sessionStorage');
   
   const dataToEncode = JSON.stringify({id: userId, url: url});
