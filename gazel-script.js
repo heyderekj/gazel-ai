@@ -103,11 +103,11 @@ function analyzeSEOViaForm(url) {
   console.log('[Gazel] URL and user ID stored in sessionStorage');
   
   const dataToEncode = JSON.stringify({id: userId, url: url});
-let encodedData = btoa(dataToEncode);
-// Make sure to replace all potential '=' at the end
-encodedData = encodedData.replace(/=+$/, function(match) {
+  let encodedData = btoa(dataToEncode);
+  // Make sure to replace all potential '=' at the end
+  encodedData = encodedData.replace(/=+$/, function(match) {
   return '_'.repeat(match.length);
-});
+  });
   
   // Create the Stripe checkout URL with the encoded reference ID
   // Note: The Stripe link part may change in the final version
