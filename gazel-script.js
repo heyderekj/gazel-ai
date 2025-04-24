@@ -792,8 +792,6 @@ function addSimulatedDataNotice() {
   notice.className = 'simulated-data-notice';
   notice.style.position = 'fixed';
   notice.style.bottom = '20px';
-  notice.style.right = '20
-  notice.style.bottom = '20px';
   notice.style.right = '20px';
   notice.style.padding = '10px 15px';
   notice.style.background = '#FFF9E5';
