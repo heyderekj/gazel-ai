@@ -2,31 +2,32 @@
 (function() {
   console.log('[Gazel] Script initialized');
   
-  // Wait for DOM to be fully loaded before running page-specific code
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('[Gazel] DOM fully loaded');
-    
-    // First, set up common elements like the URL form on homepage
-    setupHomePageElements();
-    
-    // Then, check which page we're on and run appropriate initialization
-    if (window.location.pathname.includes('/loading')) {
-      console.log('[Gazel] On loading page, initializing...');
-      loadingPageInit();
-    } 
-    else if (window.location.pathname.includes('/results-pre')) {
-      console.log('[Gazel] On results-pre page, initializing...');
-      resultsPrePageInit();
-    }
-    else if (window.location.pathname.includes('/results')) {
-      console.log('[Gazel] On results page, initializing...');
-      resultsPageInit();
-    }
-    else {
-      // Assume homepage or any page with the URL form
-      console.log('[Gazel] On homepage or other page with URL form');
-    }
-  });
+  if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeGazel);
+} else {
+  initializeGazel();
+}
+
+function initializeGazel() {
+  console.log('[Gazel] Running initializeGazel');
+
+  setupHomePageElements();
+
+  const path = window.location.pathname;
+  if (path.includes('/loading')) {
+    console.log('[Gazel] On loading page, initializing...');
+    loadingPageInit();
+  } else if (path.includes('/results-pre')) {
+    console.log('[Gazel] On results-pre page, initializing...');
+    resultsPrePageInit();
+  } else if (path.includes('/results')) {
+    console.log('[Gazel] On results page, initializing...');
+    resultsPageInit();
+  } else {
+    console.log('[Gazel] On homepage or other page with URL form');
+  }
+}
+
 
   // Home page elements setup (URL form and validation)
   function setupHomePageElements() {
@@ -844,5 +845,35 @@ function updateScore(elementId, score) {
   elements.forEach(element => {
     element.textContent = formattedScore;
   });
+  // Reinitialize on SPA navigation
+window.addEventListener('popstate', () => {
+  console.log('[Gazel] popstate triggered');
+  initializeGazel();
+});
+
+// Webflow-specific reinit
+if (typeof Webflow !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    if (Webflow && Webflow.push) {
+      Webflow.push(() => {
+        console.log('[Gazel] Webflow page changed, reinitializing');
+        initializeGazel();
+      });
+    }
+  });
+}
+
+// Fallback reinit on link click
+document.addEventListener('click', (e) => {
+  if (e.target.tagName === 'A' || e.target.closest('a')) {
+    setTimeout(() => {
+      if (document.readyState === 'complete') {
+        console.log('[Gazel] Link clicked, reinitializing');
+        initializeGazel();
+      }
+    }, 500);
+  }
+});
+
 }
 })();
