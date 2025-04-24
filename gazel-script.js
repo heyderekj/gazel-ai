@@ -1,126 +1,35 @@
-// Main Gazel initialization script
-(function() {
+document.addEventListener('DOMContentLoaded', function () {
   console.log('[Gazel] Script initialized');
-  
-  if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeGazel);
-} else {
-  initializeGazel();
-}
 
-function initializeGazel() {
-  console.log('[Gazel] Running initializeGazel');
+  const form = document.querySelector('form');
+  const urlField = document.querySelector('.url-field');
+  const urlButton = document.querySelector('.url-button');
 
-  setupHomePageElements();
+  console.log('[Gazel] Form elements found:', {
+    form: !!form,
+    field: !!urlField,
+    button: !!urlButton
+  });
 
-  const path = window.location.pathname;
-  if (path.includes('/loading')) {
-    console.log('[Gazel] On loading page, initializing...');
-    loadingPageInit();
-  } else if (path.includes('/results-pre')) {
-    console.log('[Gazel] On results-pre page, initializing...');
-    resultsPrePageInit();
-  } else if (path.includes('/results')) {
-    console.log('[Gazel] On results page, initializing...');
-    resultsPageInit();
-  } else {
-    console.log('[Gazel] On homepage or other page with URL form');
+  // Fix insecure form action
+  if (form && form.getAttribute('action')?.startsWith('http://')) {
+    form.setAttribute('action', form.getAttribute('action').replace('http://', 'https://'));
+    console.log('[Gazel] Fixed insecure form action target');
   }
-}
 
+  // Set input attributes to prevent autofill and override Webflow validation
+  if (urlField) {
+    urlField.setAttribute('autocomplete', 'off');
+    urlField.setAttribute('autocorrect', 'off');
+    urlField.setAttribute('autocapitalize', 'off');
+    urlField.setAttribute('spellcheck', 'false');
+    urlField.setAttribute('type', 'text');
+  }
 
-  // Home page elements setup (URL form and validation)
-  function setupHomePageElements() {
-    const form = document.querySelector('form');
-    const urlField = document.querySelector('.url-field');
-    const urlButton = document.querySelector('.url-button');
-
-    console.log('[Gazel] Form elements found:', {
-      form: !!form,
-      field: !!urlField,
-      button: !!urlButton
-    });
-
-    // If no form elements found, exit early
-    if (!form && !urlField && !urlButton) {
-      console.log('[Gazel] No form elements found on this page');
-      return;
-    }
-
-    // Fix insecure form action if needed
-    if (form && form.getAttribute('action')?.startsWith('http://')) {
-      form.setAttribute('action', form.getAttribute('action').replace('http://', 'https://'));
-      console.log('[Gazel] Fixed insecure form action target');
-    }
-
-    // Set input attributes to prevent autofill
-    if (urlField) {
-      urlField.setAttribute('autocomplete', 'off');
-      urlField.setAttribute('autocorrect', 'off');
-      urlField.setAttribute('autocapitalize', 'off');
-      urlField.setAttribute('spellcheck', 'false');
-      urlField.setAttribute('type', 'text');
-    }
-
-    // Disable button initially
-    if (urlButton) {
-      urlButton.style.opacity = '0.5';
-      urlButton.style.pointerEvents = 'none';
-    }
-
-    // Handle input changes
-    if (urlField) {
-      urlField.addEventListener('input', function() {
-        const inputValue = this.value.trim();
-        const parent = this.closest('.url-input_area');
-        
-        if (parent) {
-          parent.classList.toggle('has-content', !!inputValue);
-        }
-
-        if (urlButton) {
-          if (isValidURL(inputValue)) {
-            urlButton.style.opacity = '1';
-            urlButton.style.pointerEvents = 'auto';
-            urlField.setCustomValidity('');
-            urlButton.classList.add('url-valid');
-          } else {
-            urlButton.style.opacity = '0.5';
-            urlButton.style.pointerEvents = 'none';
-            urlField.setCustomValidity(inputValue ? 'Please enter a valid URL' : '');
-            urlButton.classList.remove('url-valid');
-          }
-        }
-      });
-    }
-
-    // Button click handler
-    if (urlButton) {
-      urlButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        const url = urlField?.value.trim() || '';
-        if (isValidURL(url)) {
-          analyzeSEOViaForm(url);
-        } else {
-          urlField.setCustomValidity('Please enter a valid URL');
-          urlField.reportValidity();
-        }
-      });
-    }
-
-    // Form submit handler
-    if (form) {
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const url = urlField?.value.trim() || '';
-        if (isValidURL(url)) {
-          analyzeSEOViaForm(url);
-        } else {
-          urlField.setCustomValidity('Please enter a valid URL');
-          urlField.reportValidity();
-        }
-      });
-    }
+  // Disable button initially
+  if (urlButton) {
+    urlButton.style.opacity = '0.5';
+    urlButton.style.pointerEvents = 'none';
   }
 
   // URL validation helper
@@ -190,16 +99,15 @@ function analyzeSEOViaForm(url) {
   sessionStorage.setItem('analyzedUrl', url);
   sessionStorage.setItem('userId', userId);
   sessionStorage.setItem('analysisStartTime', Date.now());
-  sessionStorage.setItem('apiEndpoint', API_ENDPOINT);
+  sessionStorage.setItem('apiEndpoint', 'https://api.gazel.ai/api/v1/seo_analyze');
   console.log('[Gazel] URL and user ID stored in sessionStorage');
   
-  // Base64 encode the data for Stripe (shorter format)
   const dataToEncode = JSON.stringify({id: userId, url: url});
-  
-  // Encode to Base64 and replace '=' with '_' to avoid issues with client_reference_id
-  // This is the key change to fix the payment event issue
-  const encodedData = btoa(dataToEncode).replace(/=/g, '_');
-  console.log('[Gazel] Base64 encoded data for Stripe (with = replaced by _):', encodedData);
+  let encodedData = btoa(dataToEncode);
+  // Make sure to replace all potential '=' at the end
+  encodedData = encodedData.replace(/=+$/, function(match) {
+  return '_'.repeat(match.length);
+  });
   
   // Create the Stripe checkout URL with the encoded reference ID
   // Note: The Stripe link part may change in the final version
@@ -235,6 +143,82 @@ function decodeStripeReferenceId(encodedId) {
     return null;
   }
 }
+
+  // Handle input changes
+  if (urlField) {
+    urlField.addEventListener('input', function () {
+      const inputValue = this.value.trim();
+      const parent = this.closest('.url-input_area');
+      if (parent) {
+        parent.classList.toggle('has-content', !!inputValue);
+      }
+
+      if (urlButton) {
+        if (isValidURL(inputValue)) {
+          urlButton.style.opacity = '1';
+          urlButton.style.pointerEvents = 'auto';
+          urlField.setCustomValidity('');
+          urlButton.classList.add('url-valid');
+        } else {
+          urlButton.style.opacity = '0.5';
+          urlButton.style.pointerEvents = 'none';
+          urlField.setCustomValidity(inputValue ? 'Please enter a valid URL' : '');
+          urlButton.classList.remove('url-valid');
+        }
+      }
+    });
+  }
+
+  // Button click handler
+  if (urlButton) {
+    urlButton.addEventListener('click', function (e) {
+      e.preventDefault();
+      const url = urlField?.value.trim() || '';
+      if (isValidURL(url)) {
+        analyzeSEOViaForm(url);
+      } else {
+        urlField.setCustomValidity('Please enter a valid URL');
+        urlField.reportValidity();
+      }
+    });
+  }
+
+  // Form submit handler
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const url = urlField?.value.trim() || '';
+      if (isValidURL(url)) {
+        analyzeSEOViaForm(url);
+      } else {
+        urlField.setCustomValidity('Please enter a valid URL');
+        urlField.reportValidity();
+      }
+    });
+  }
+
+  // The rest of your script (loading page, results, simulated data, etc.) remains unchanged
+  // You can paste it below this block or keep it as-is if already present
+});
+
+  
+  // ===== LOADING PAGE CODE =====
+  if (window.location.pathname.includes('/loading')) {
+    console.log('[Gazel] On loading page, initializing...');
+    setTimeout(loadingPageInit, 100); // Short delay to ensure DOM is ready
+  }
+  
+  // ===== RESULTS PAGE CODE =====
+  if (window.location.pathname.includes('/results') && !window.location.pathname.includes('/results-pre')) {
+    console.log('[Gazel] On results page, initializing...');
+    setTimeout(resultsPageInit, 100); // Short delay to ensure DOM is ready
+  }
+  
+  // ===== RESULTS PRE PAGE CODE =====
+  if (window.location.pathname.includes('/results-pre')) {
+    console.log('[Gazel] On results-pre page, initializing...');
+    setTimeout(resultsPrePageInit, 100); // Short delay to ensure DOM is ready
+  }
   
   // Loading page initialization
   function loadingPageInit() {
@@ -286,7 +270,15 @@ function decodeStripeReferenceId(encodedId) {
     }
     
     // Start API request or use simulated data
-    async function startSEOAnalysisWithProxy(url) {
+    startSEOAnalysisWithProxy(analyzedUrl)
+      .then(data => redirectAfterMinTime(true, data))
+      .catch(error => {
+        console.error('[Gazel API] Error:', error);
+        redirectAfterMinTime(false, error);
+      });
+  }
+  
+  async function startSEOAnalysisWithProxy(url) {
   const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
   console.log('[Gazel API] Triggering analysis for:', url);
 
@@ -326,6 +318,21 @@ function decodeStripeReferenceId(encodedId) {
   return results;
 }
 
+  
+  // Results Pre-page initialization
+  function resultsPrePageInit() {
+    // Get the URL from sessionStorage
+    let analyzedUrl = sessionStorage.getItem('analyzedUrl') || '';
+    
+    // Display the analyzed URL
+    updateUrlDisplay(analyzedUrl);
+    
+    // Get the Stripe checkout URL from sessionStorage
+    const stripeCheckoutUrl = sessionStorage.getItem('stripeCheckoutUrl');
+    
+    // Set up both payment buttons to redirect to Stripe
+    const paymentButton1 = document.getElementById('payment-button-1');
+    const paymentButton2 = document.getElementById('payment-button-2');
     
     // Function to handle button click
     const handlePaymentClick = function(e) {
@@ -362,36 +369,31 @@ function decodeStripeReferenceId(encodedId) {
   
   // Function to update URL display on loading page
   function updateUrlDisplay(url) {
-  if (!url) {
-    console.warn('[Gazel] No URL provided to updateUrlDisplay');
-    return;
-  }
-
-  // Update elements with ID 'url-text'
-  const urlTextElements = document.querySelectorAll('#url-text');
-  if (urlTextElements.length > 0) {
-    urlTextElements.forEach(element => {
-      element.textContent = url;
-    });
-    console.log('[Gazel] Updated #url-text elements with:', url);
-  } else {
-    // Fallback: Replace {url} in text nodes
-    let replaced = false;
-    document.querySelectorAll('*').forEach(el => {
-      el.childNodes.forEach(node => {
-        if (node.nodeType === 3 && node.textContent.includes('{url}')) {
-          node.textContent = node.textContent.replace('{url}', url);
-          replaced = true;
+    // Find all elements with ID 'url-text'
+    const urlTextElements = document.querySelectorAll('#url-text');
+    
+    if (urlTextElements.length > 0) {
+      // Update all instances of url-text elements
+      urlTextElements.forEach(element => {
+        element.textContent = url;
+      });
+      
+      console.log('[Gazel] Updated URL display elements');
+    } else {
+      console.log('[Gazel] No URL text elements found, searching for templates');
+      
+      // Fallback: Search for elements containing {url} template
+      document.querySelectorAll('*').forEach(el => {
+        if (el.childNodes && el.childNodes.length > 0) {
+          el.childNodes.forEach(node => {
+            if (node.nodeType === 3 && node.textContent && node.textContent.includes('{url}')) {
+              node.textContent = node.textContent.replace('{url}', url);
+            }
+          });
         }
       });
-    });
-    if (replaced) {
-      console.log('[Gazel] Replaced {url} placeholders in text nodes');
-    } else {
-      console.warn('[Gazel] No {url} placeholders found to replace');
     }
   }
-}
   
   // Function to create and add spinner animation to loading page
   function createAndAddSpinner() {
@@ -813,35 +815,4 @@ function updateScore(elementId, score) {
   elements.forEach(element => {
     element.textContent = formattedScore;
   });
-  // Reinitialize on SPA navigation
-window.addEventListener('popstate', () => {
-  console.log('[Gazel] popstate triggered');
-  initializeGazel();
-});
-
-// Webflow-specific reinit
-if (typeof Webflow !== 'undefined') {
-  document.addEventListener('DOMContentLoaded', () => {
-    if (Webflow && Webflow.push) {
-      Webflow.push(() => {
-        console.log('[Gazel] Webflow page changed, reinitializing');
-        initializeGazel();
-      });
-    }
-  });
 }
-
-// Fallback reinit on link click
-document.addEventListener('click', (e) => {
-  if (e.target.tagName === 'A' || e.target.closest('a')) {
-    setTimeout(() => {
-      if (document.readyState === 'complete') {
-        console.log('[Gazel] Link clicked, reinitializing');
-        initializeGazel();
-      }
-    }, 500);
-  }
-});
-
-}
-})();
