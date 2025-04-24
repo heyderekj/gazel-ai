@@ -286,83 +286,46 @@ function decodeStripeReferenceId(encodedId) {
     }
     
     // Start API request or use simulated data
-    startSEOAnalysisWithProxy(analyzedUrl)
-      .then(data => redirectAfterMinTime(true, data))
-      .catch(error => {
-        console.error('[Gazel API] Error:', error);
-        redirectAfterMinTime(false, error);
-      });
+    async function startSEOAnalysisWithProxy(url) {
+  const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
+  console.log('[Gazel API] Triggering analysis for:', url);
+
+  // Step 1: Trigger analysis (no response expected)
+  await fetch('https://api.gazel.ai/api/v1/seo_analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, id: userId })
+  });
+
+  // Step 2: Check payment status
+  const paymentRes = await fetch('https://api.gazel.ai/api/v1/checkpayment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: userId })
+  });
+
+  const { paid } = await paymentRes.json();
+  console.log('[Gazel API] Payment status:', paid ? 'PAID' : 'NOT PAID');
+
+  // Step 3: Fetch results
+  const resultsUrl = paid
+    ? 'https://api.gazel.ai/api/v1/full_results'
+    : 'https://api.gazel.ai/api/v1/pre_results';
+
+  const resultsRes = await fetch(resultsUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: userId })
+  });
+
+  if (!resultsRes.ok) {
+    throw new Error(`Failed to fetch results: ${resultsRes.status}`);
   }
-  
-  function startSEOAnalysisWithProxy(url) {
-    return new Promise((resolve, reject) => {
-      if (!url) {
-        reject(new Error('No URL provided for analysis'));
-        return;
-      }
-      
-      console.log('[Gazel API] Starting API request');
-      console.log('[Gazel API] Analyzing URL:', url);
-      
-      // Get the user ID from storage
-      const userId = sessionStorage.getItem('userId') || getShortUserIdentifier();
-      console.log('[Gazel API] Using user ID for API call:', userId);
-      
-      // Set up API call with fetch
-      fetch('https://api.gazel.ai/api/v1/seo_analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: url,
-          id: userId
-        })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`API request failed with status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log('[Gazel API] Received API response:', data);
-        resolve(data);
-      })
-      .catch(error => {
-        console.error('[Gazel API] Error details:', {
-          message: error.message,
-          name: error.name,
-          stack: error.stack
-        });
-        
-        // In development/testing mode, fall back to simulated data
-        if (window.location.hostname === 'localhost' || 
-            window.location.hostname === '127.0.0.1' ||
-            window.location.hostname.includes('webflow.io')) {
-          console.log('[Gazel API] Development environment detected, using simulated data');
-          resolve(createSimulatedAPIResponse(url));
-        } else {
-          reject(error);
-        }
-      });
-    });
-  }
-  
-  // Results Pre-page initialization
-  function resultsPrePageInit() {
-    // Get the URL from sessionStorage
-    let analyzedUrl = sessionStorage.getItem('analyzedUrl') || '';
-    
-    // Display the analyzed URL
-    updateUrlDisplay(analyzedUrl);
-    
-    // Get the Stripe checkout URL from sessionStorage
-    const stripeCheckoutUrl = sessionStorage.getItem('stripeCheckoutUrl');
-    
-    // Set up both payment buttons to redirect to Stripe
-    const paymentButton1 = document.getElementById('payment-button-1');
-    const paymentButton2 = document.getElementById('payment-button-2');
+
+  const results = await resultsRes.json();
+  return results;
+}
+
     
     // Function to handle button click
     const handlePaymentClick = function(e) {
