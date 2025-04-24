@@ -362,31 +362,36 @@ function decodeStripeReferenceId(encodedId) {
   
   // Function to update URL display on loading page
   function updateUrlDisplay(url) {
-    // Find all elements with ID 'url-text'
-    const urlTextElements = document.querySelectorAll('#url-text');
-    
-    if (urlTextElements.length > 0) {
-      // Update all instances of url-text elements
-      urlTextElements.forEach(element => {
-        element.textContent = url;
-      });
-      
-      console.log('[Gazel] Updated URL display elements');
-    } else {
-      console.log('[Gazel] No URL text elements found, searching for templates');
-      
-      // Fallback: Search for elements containing {url} template
-      document.querySelectorAll('*').forEach(el => {
-        if (el.childNodes && el.childNodes.length > 0) {
-          el.childNodes.forEach(node => {
-            if (node.nodeType === 3 && node.textContent && node.textContent.includes('{url}')) {
-              node.textContent = node.textContent.replace('{url}', url);
-            }
-          });
+  if (!url) {
+    console.warn('[Gazel] No URL provided to updateUrlDisplay');
+    return;
+  }
+
+  // Update elements with ID 'url-text'
+  const urlTextElements = document.querySelectorAll('#url-text');
+  if (urlTextElements.length > 0) {
+    urlTextElements.forEach(element => {
+      element.textContent = url;
+    });
+    console.log('[Gazel] Updated #url-text elements with:', url);
+  } else {
+    // Fallback: Replace {url} in text nodes
+    let replaced = false;
+    document.querySelectorAll('*').forEach(el => {
+      el.childNodes.forEach(node => {
+        if (node.nodeType === 3 && node.textContent.includes('{url}')) {
+          node.textContent = node.textContent.replace('{url}', url);
+          replaced = true;
         }
       });
+    });
+    if (replaced) {
+      console.log('[Gazel] Replaced {url} placeholders in text nodes');
+    } else {
+      console.warn('[Gazel] No {url} placeholders found to replace');
     }
   }
+}
   
   // Function to create and add spinner animation to loading page
   function createAndAddSpinner() {
